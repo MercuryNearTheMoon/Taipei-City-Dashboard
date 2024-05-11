@@ -55,6 +55,13 @@ export const useMapStore = defineStore("map", {
 		savedLocations: savedLocations,
 		// Store currently loading layers,
 		loadingLayers: [],
+		selectLngLat: {},
+		geoPositionData: {},
+		algorithmItem: null,
+		searching: false,
+		searchingData: null,
+		newGeoJsonData: {},
+		newAppend: {},
 	}),
 	getters: {},
 	actions: {
@@ -75,6 +82,12 @@ export const useMapStore = defineStore("map", {
 					this.initializeBasicLayers();
 				})
 				.on("click", (event) => {
+					this.selectLngLat = event.lngLat;
+					if (this.searching) {
+						this.callAlgorithm(this.algorithmItem);
+						// console.log(this.searching);
+						this.addToMapLayerList(this.newAppend);
+					}
 					if (this.popup) {
 						this.popup = null;
 					}
@@ -217,7 +230,15 @@ export const useMapStore = defineStore("map", {
 				appendLayer.layerId = mapLayerId;
 				// 1-2. If the layer doesn't exist, call an API to get the layer data
 				this.loadingLayers.push(appendLayer.layerId);
-				if (element.source === "geojson") {
+				console.log("hello world");
+				if (this.searching) {
+					console.log("searching");
+					this.addGeojsonSource(appendLayer, this.newGeoJsonData);
+					this.newAppend = appendLayer;
+					console.log(this.newAppend);
+					console.log(appendLayer);
+					this.searching = false;
+				} else if (element.source === "geojson") {
 					this.fetchLocalGeoJson(appendLayer);
 				} else if (element.source === "raster") {
 					this.addRasterSource(appendLayer);
@@ -229,12 +250,15 @@ export const useMapStore = defineStore("map", {
 			axios
 				.get(`/mapData/${map_config.index}.geojson`)
 				.then((rs) => {
+					this.geoPositionData = rs.data;
 					this.addGeojsonSource(map_config, rs.data);
 				})
 				.catch((e) => console.error(e));
 		},
 		// 3-1. Add a local geojson as a source in mapbox
 		addGeojsonSource(map_config, data) {
+			// console.log(data);
+			console.log("test " + map_config.index);
 			if (!["voronoi", "isoline"].includes(map_config.type)) {
 				this.map.addSource(`${map_config.layerId}-source`, {
 					type: "geojson",
@@ -849,6 +873,82 @@ export const useMapStore = defineStore("map", {
 			this.map = null;
 			this.currentVisibleLayers = [];
 			this.removePopup();
+		},
+		searchNearby(geoJsonData, n, referencePoint) {
+			// console.log("test" + geoJsonData.type);
+			// console.log(n);
+			// console.log(referencePoint);
+			geoJsonData.features.sort((a, b) => {
+				let distA = this.haversineDistance(
+					{ lat: a.properties.lat, lng: a.properties.lng },
+					referencePoint
+				);
+				let distB = this.haversineDistance(
+					{ lat: b.properties.lat, lng: b.properties.lng },
+					referencePoint
+				);
+				return distA - distB;
+			});
+			var t = geoJsonData.features.length;
+			t -= n;
+			for (var i = 0; i < t; i++) {
+				geoJsonData.features.pop();
+			}
+			this.clearOnlyLayers();
+			this.newGeoJsonData = geoJsonData;
+		},
+		haversineDistance(coords1, coords2) {
+			function toRad(x) {
+				return (x * Math.PI) / 180;
+			}
+
+			var R = 6371; // Earth's radius in kilometers
+			var dLat = toRad(coords2.lat - coords1.lat);
+			var dLon = toRad(coords2.lng - coords1.lng);
+
+			var a =
+				Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+				Math.cos(toRad(coords1.lat)) *
+					Math.cos(toRad(coords2.lat)) *
+					Math.sin(dLon / 2) *
+					Math.sin(dLon / 2);
+			var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+			var distance = R * c;
+
+			return distance;
+		},
+		searchDistance(geoJsonData, distance, referencePoint) {
+			for (let i of geoJsonData.features) {
+				if (this.haversineDistance(i, referencePoint) > distance)
+					i.pop();
+			}
+			return geoJsonData;
+		},
+		getCenter(coords1, coords2) {
+			return {
+				lat: (coords1.lat + coords2.lat) / 2.0,
+				lng: (coords1.lng + coords2.lng) / 2.0,
+			};
+		},
+		getRadius(coords1, coords2) {
+			return this.haversineDistance(coords1, coords2) / 2.0;
+		},
+		callAlgorithm(item) {
+			// console.log("start to call algorithm");
+			// console.log(item);
+			if (item === "NPosition") {
+				this.searchNearby(
+					this.geoPositionData,
+					this.searchingData,
+					this.selectLngLat
+				);
+			} else if (item === "Distance") {
+				this.searchDistance(
+					this.geoPositionData,
+					this.searchingData,
+					this.selectLngLat
+				);
+			}
 		},
 	},
 });

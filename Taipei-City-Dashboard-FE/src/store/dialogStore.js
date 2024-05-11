@@ -55,7 +55,10 @@ export const useDialogStore = defineStore("dialog", {
 	actions: {
 		// Show the dialog passed into the function
 		showDialog(dialog) {
+			console.log("showDialog: ", dialog);
+			console.log("this.dialogs[dialog]: ", this.dialogs[dialog]);
 			this.dialogs[dialog] = true;
+			console.log("this.dialogs[dialog]: ", this.dialogs[dialog]);
 		},
 		// Will hide all dialogs currently active
 		hideAllDialogs() {
