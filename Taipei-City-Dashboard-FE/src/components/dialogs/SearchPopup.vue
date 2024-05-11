@@ -47,10 +47,6 @@ function handleClose(isComfirm) {
 				>
 			</div>
 
-			<div v-if="name && searchType === 'NPosition'">
-				<h3>輸入想要搜尋的位置數量</h3>
-				<input v-model="nNumber" type="text" placeholder="點的數量" />
-			</div>
 			<div>
 				<input
 					id="Distance"
@@ -63,6 +59,10 @@ function handleClose(isComfirm) {
 				>
 			</div>
 
+			<div v-if="name && searchType === 'NPosition'">
+				<h3>輸入想要搜尋的位置數量</h3>
+				<input v-model="nNumber" type="text" placeholder="點的數量" />
+			</div>
 			<div v-if="name && searchType === 'Distance'">
 				<h3>輸入想要搜尋的距離(單位: 公尺)</h3>
 				<input
