@@ -131,16 +131,13 @@ export const useContentStore = defineStore("content", {
 			}
 			this.currentDashboard.name = currentDashboardInfo.name;
 			this.currentDashboard.icon = currentDashboardInfo.icon;
-			console.log("response");
 			const response = await http.get(
 				`/dashboard/${this.currentDashboard.index}`
 			);
 
 			if (response.data.data) {
 				this.currentDashboard.components = response.data.data;
-				console.log("response.data.data1", response.data.data);
 			} else {
-				console.log("response.data.data2", response.data.data);
 				this.currentDashboard.components = [];
 				this.loading = false;
 				return;
@@ -242,7 +239,6 @@ export const useContentStore = defineStore("content", {
 			}
 			const response = await http.get(`/dashboard/map-layers`);
 			this.mapLayers = response.data.data;
-			console.log("this.mapLayers", this.mapLayers);
 			this.setMapLayersContent();
 		},
 		// 7. Call an API for each map layer component to get its chart data and store it (if in /mapview)

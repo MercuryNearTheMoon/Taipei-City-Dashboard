@@ -85,8 +85,6 @@ export const useMapStore = defineStore("map", {
 					this.selectLngLat = event.lngLat;
 					if (this.searching) {
 						this.callAlgorithm(this.algorithmItem);
-						// console.log(this.searching);
-						this.addToMapLayerList(this.newAppend);
 					}
 					if (this.popup) {
 						this.popup = null;
@@ -230,15 +228,7 @@ export const useMapStore = defineStore("map", {
 				appendLayer.layerId = mapLayerId;
 				// 1-2. If the layer doesn't exist, call an API to get the layer data
 				this.loadingLayers.push(appendLayer.layerId);
-				console.log("hello world");
-				if (this.searching) {
-					console.log("searching");
-					this.addGeojsonSource(appendLayer, this.newGeoJsonData);
-					this.newAppend = appendLayer;
-					console.log(this.newAppend);
-					console.log(appendLayer);
-					this.searching = false;
-				} else if (element.source === "geojson") {
+				if (element.source === "geojson") {
 					this.fetchLocalGeoJson(appendLayer);
 				} else if (element.source === "raster") {
 					this.addRasterSource(appendLayer);
@@ -257,8 +247,6 @@ export const useMapStore = defineStore("map", {
 		},
 		// 3-1. Add a local geojson as a source in mapbox
 		addGeojsonSource(map_config, data) {
-			// console.log(data);
-			console.log("test " + map_config.index);
 			if (!["voronoi", "isoline"].includes(map_config.type)) {
 				this.map.addSource(`${map_config.layerId}-source`, {
 					type: "geojson",
@@ -875,27 +863,35 @@ export const useMapStore = defineStore("map", {
 			this.removePopup();
 		},
 		searchNearby(geoJsonData, n, referencePoint) {
-			// console.log("test" + geoJsonData.type);
-			// console.log(n);
-			// console.log(referencePoint);
-			geoJsonData.features.sort((a, b) => {
+			const validFeatures = geoJsonData.features.filter(
+				(feature) =>
+					feature.geometry &&
+					feature.geometry.coordinates &&
+					feature.geometry.coordinates.length >= 2
+			);
+
+			validFeatures.sort((a, b) => {
 				let distA = this.haversineDistance(
-					{ lat: a.properties.lat, lng: a.properties.lng },
+					{
+						lat: a.geometry.coordinates[1],
+						lng: a.geometry.coordinates[0],
+					},
 					referencePoint
 				);
 				let distB = this.haversineDistance(
-					{ lat: b.properties.lat, lng: b.properties.lng },
+					{
+						lat: b.geometry.coordinates[1],
+						lng: b.geometry.coordinates[0],
+					},
 					referencePoint
 				);
 				return distA - distB;
 			});
-			var t = geoJsonData.features.length;
-			t -= n;
-			for (var i = 0; i < t; i++) {
-				geoJsonData.features.pop();
-			}
 			this.clearOnlyLayers();
-			this.newGeoJsonData = geoJsonData;
+			this.addGeoJSONLayerFromMemory({
+				type: "FeatureCollection",
+				features: validFeatures.slice(0, n),
+			});
 		},
 		haversineDistance(coords1, coords2) {
 			function toRad(x) {
@@ -918,11 +914,24 @@ export const useMapStore = defineStore("map", {
 			return distance;
 		},
 		searchDistance(geoJsonData, distance, referencePoint) {
-			for (let i of geoJsonData.features) {
-				if (this.haversineDistance(i, referencePoint) > distance)
-					i.pop();
-			}
-			return geoJsonData;
+			const filteredFeatures = geoJsonData.features.filter((feature) => {
+				if (feature.geometry && feature.geometry.coordinates) {
+					let coords = {
+						lat: feature.geometry.coordinates[1],
+						lng: feature.geometry.coordinates[0],
+					};
+					return (
+						this.haversineDistance(coords, referencePoint) <=
+						distance
+					);
+				}
+				return false;
+			});
+			this.clearOnlyLayers();
+			this.addGeoJSONLayerFromMemory({
+				type: "FeatureCollection",
+				features: filteredFeatures,
+			});
 		},
 		getCenter(coords1, coords2) {
 			return {
@@ -949,6 +958,47 @@ export const useMapStore = defineStore("map", {
 					this.selectLngLat
 				);
 			}
+		},
+		addGeoJSONLayerFromMemory(geojsonData) {
+			this.map.addSource("memory-layer-source", {
+				type: "geojson",
+				data: geojsonData,
+			});
+			this.map.addLayer({
+				id: "memory-layer",
+				type: "circle",
+				source: "memory-layer-source",
+				layout: { visibility: "visible" },
+				paint: {
+					"circle-radius": {
+						base: 1.75,
+						stops: [
+							[12, 2],
+							[22, 180],
+						],
+					},
+					"circle-small": {
+						"circle-opacity": [
+							"interpolate",
+							["linear"],
+							["zoom"],
+							11.99,
+							0.4,
+							13,
+							0.5,
+							17,
+							1,
+						],
+					},
+					"circle-color": "#FF8552",
+					"circle-opacity": 1,
+					"circle-stroke-width": 0,
+					"circle-stroke-color": "#ffffff",
+					"circle-stroke-opacity": 0.8,
+				},
+			});
+			this.currentLayers.push("memory-layer");
+			this.currentVisibleLayers.push("memory-layer");
 		},
 	},
 });

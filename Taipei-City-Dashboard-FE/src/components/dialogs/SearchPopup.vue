@@ -13,14 +13,16 @@ const mapStore = useMapStore();
 const searchType = ref("Distance");
 
 const nNumber = ref(3);
-const distance = ref(3);
+const distance = ref(1500);
 
 function handleClose(isComfirm) {
 	if (isComfirm) {
 		mapStore.algorithmItem = searchType.value;
 		mapStore.searching = true;
 		mapStore.searchingData =
-			searchType.value === "NPosition" ? nNumber.value : distance.value;
+			searchType.value === "NPosition"
+				? nNumber.value
+				: distance.value / 1000;
 	}
 	dialogStore.dialogs.searchPopup = false;
 	console.log(searchType.value);

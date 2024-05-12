@@ -7,6 +7,7 @@ import { useDialogStore } from "../../store/dialogStore";
 import { useContentStore } from "../../store/contentStore";
 
 import MobileLayers from "../dialogs/MobileLayers.vue";
+import MobileLayerTab from "../utilities/miscellaneous/MobileLayerTab.vue";
 
 const mapStore = useMapStore();
 const dialogStore = useDialogStore();
@@ -35,6 +36,12 @@ function toggleVillageLayer() {
 onMounted(() => {
 	mapStore.initializeMapBox();
 });
+
+function handleCancel() {
+	mapStore.clearOnlyLayers();
+	mapStore.searching = false;
+	location.reload();
+}
 </script>
 
 <template>
@@ -74,6 +81,12 @@ onMounted(() => {
 					@click="dialogStore.showDialog('mobileLayers')"
 				>
 					<span>layers</span>
+				</button>
+				<button
+					v-if="mapStore.searching === true"
+					@click="handleCancel()"
+				>
+					<span style="color: #fea82f">refresh</span>
 				</button>
 			</div>
 			<!-- The key prop informs vue that the component should be updated when switching dashboards -->
