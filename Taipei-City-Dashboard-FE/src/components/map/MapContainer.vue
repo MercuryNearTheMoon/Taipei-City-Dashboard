@@ -37,10 +37,10 @@ onMounted(() => {
 	mapStore.initializeMapBox();
 });
 
-function handleCancel() {
-	mapStore.clearOnlyLayers();
+function handleCancel(type) {
 	mapStore.searching = false;
-	location.reload();
+	if (type === "refresh") location.reload();
+	else if (type === "cancel") mapStore.clearOnlyLayers();
 }
 </script>
 
@@ -84,9 +84,15 @@ function handleCancel() {
 				</button>
 				<button
 					v-if="mapStore.searching === true"
-					@click="handleCancel()"
+					@click="handleCancel('refresh')"
 				>
-					<span style="color: #fea82f">refresh</span>
+					<span style="color: #407899">refresh</span>
+				</button>
+				<button
+					v-if="mapStore.searching === true"
+					@click="handleCancel('cancel')"
+				>
+					<span style="color: red">cancel</span>
 				</button>
 			</div>
 			<!-- The key prop informs vue that the component should be updated when switching dashboards -->
