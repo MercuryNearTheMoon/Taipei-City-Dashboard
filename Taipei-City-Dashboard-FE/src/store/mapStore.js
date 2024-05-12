@@ -55,6 +55,13 @@ export const useMapStore = defineStore("map", {
 		savedLocations: savedLocations,
 		// Store currently loading layers,
 		loadingLayers: [],
+		selectLngLat: {},
+		geoPositionData: {},
+		algorithmItem: null,
+		searching: false,
+		searchingData: null,
+		newGeoJsonData: {},
+		newAppend: {},
 	}),
 	getters: {},
 	actions: {
@@ -75,6 +82,10 @@ export const useMapStore = defineStore("map", {
 					this.initializeBasicLayers();
 				})
 				.on("click", (event) => {
+					this.selectLngLat = event.lngLat;
+					if (this.searching) {
+						this.callAlgorithm(this.algorithmItem);
+					}
 					if (this.popup) {
 						this.popup = null;
 					}
@@ -229,6 +240,7 @@ export const useMapStore = defineStore("map", {
 			axios
 				.get(`/mapData/${map_config.index}.geojson`)
 				.then((rs) => {
+					this.geoPositionData = rs.data;
 					this.addGeojsonSource(map_config, rs.data);
 				})
 				.catch((e) => console.error(e));
@@ -849,6 +861,144 @@ export const useMapStore = defineStore("map", {
 			this.map = null;
 			this.currentVisibleLayers = [];
 			this.removePopup();
+		},
+		searchNearby(geoJsonData, n, referencePoint) {
+			const validFeatures = geoJsonData.features.filter(
+				(feature) =>
+					feature.geometry &&
+					feature.geometry.coordinates &&
+					feature.geometry.coordinates.length >= 2
+			);
+
+			validFeatures.sort((a, b) => {
+				let distA = this.haversineDistance(
+					{
+						lat: a.geometry.coordinates[1],
+						lng: a.geometry.coordinates[0],
+					},
+					referencePoint
+				);
+				let distB = this.haversineDistance(
+					{
+						lat: b.geometry.coordinates[1],
+						lng: b.geometry.coordinates[0],
+					},
+					referencePoint
+				);
+				return distA - distB;
+			});
+			this.clearOnlyLayers();
+			this.addGeoJSONLayerFromMemory({
+				type: "FeatureCollection",
+				features: validFeatures.slice(0, n),
+			});
+		},
+		haversineDistance(coords1, coords2) {
+			function toRad(x) {
+				return (x * Math.PI) / 180;
+			}
+
+			var R = 6371; // Earth's radius in kilometers
+			var dLat = toRad(coords2.lat - coords1.lat);
+			var dLon = toRad(coords2.lng - coords1.lng);
+
+			var a =
+				Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+				Math.cos(toRad(coords1.lat)) *
+					Math.cos(toRad(coords2.lat)) *
+					Math.sin(dLon / 2) *
+					Math.sin(dLon / 2);
+			var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+			var distance = R * c;
+
+			return distance;
+		},
+		searchDistance(geoJsonData, distance, referencePoint) {
+			const filteredFeatures = geoJsonData.features.filter((feature) => {
+				if (feature.geometry && feature.geometry.coordinates) {
+					let coords = {
+						lat: feature.geometry.coordinates[1],
+						lng: feature.geometry.coordinates[0],
+					};
+					return (
+						this.haversineDistance(coords, referencePoint) <=
+						distance
+					);
+				}
+				return false;
+			});
+			this.clearOnlyLayers();
+			this.addGeoJSONLayerFromMemory({
+				type: "FeatureCollection",
+				features: filteredFeatures,
+			});
+		},
+		getCenter(coords1, coords2) {
+			return {
+				lat: (coords1.lat + coords2.lat) / 2.0,
+				lng: (coords1.lng + coords2.lng) / 2.0,
+			};
+		},
+		getRadius(coords1, coords2) {
+			return this.haversineDistance(coords1, coords2) / 2.0;
+		},
+		callAlgorithm(item) {
+			// console.log("start to call algorithm");
+			// console.log(item);
+			if (item === "NPosition") {
+				this.searchNearby(
+					this.geoPositionData,
+					this.searchingData,
+					this.selectLngLat
+				);
+			} else if (item === "Distance") {
+				this.searchDistance(
+					this.geoPositionData,
+					this.searchingData,
+					this.selectLngLat
+				);
+			}
+		},
+		addGeoJSONLayerFromMemory(geojsonData) {
+			this.map.addSource("memory-layer-source", {
+				type: "geojson",
+				data: geojsonData,
+			});
+			this.map.addLayer({
+				id: "memory-layer",
+				type: "circle",
+				source: "memory-layer-source",
+				layout: { visibility: "visible" },
+				paint: {
+					"circle-radius": {
+						base: 1.75,
+						stops: [
+							[12, 2],
+							[22, 180],
+						],
+					},
+					"circle-small": {
+						"circle-opacity": [
+							"interpolate",
+							["linear"],
+							["zoom"],
+							11.99,
+							0.4,
+							13,
+							0.5,
+							17,
+							1,
+						],
+					},
+					"circle-color": "#FF8552",
+					"circle-opacity": 1,
+					"circle-stroke-width": 0,
+					"circle-stroke-color": "#ffffff",
+					"circle-stroke-opacity": 0.8,
+				},
+			});
+			this.currentLayers.push("memory-layer");
+			this.currentVisibleLayers.push("memory-layer");
 		},
 	},
 });
